@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS `${tableInfo.tableName}` (
+#foreach($c in ${columns})
+    `${c.columnName}` ${c.type}#if(${c.notNull}) ${c.notNull}#end#if(${c.defaultValue}) ${c.defaultValue}#end#if(${c.isPrimary()}) PRIMARY KEY#end#if(${c.autoIncrement}) ${c.autoIncrement}#end#if(${c.autoTimestamp}) ON UPDATE CURRENT_TIMESTAMP#end#if(${indexes.size()} > 0 || ${foreach.index} != ${columns.size()} - 1),#end
+#end
+#foreach($i in ${indexes})
+    ${i.type}#if(${i.name}) `${i.name}`#end ${i.columnNames}#if(${foreach.hasNext}),#end
+#end
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

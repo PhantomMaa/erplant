@@ -1,0 +1,118 @@
+@startuml
+
+' 如果非视网膜屏，可以注释掉这一行
+' skinparam dpi 300
+
+' 定义库关键字
+!define Database(name) package name <<Rectangle>>
+' 定义表关键字，包括了表名和描述
+!define Table(name, do_name, comment) class name as "name\ncomment" << (T,#FFAAAA) >>
+
+' 默认值
+!define default(x) <color:gray>default[x]</color>
+
+' 使用下划线表示不能为null
+!define not_null <color:gray>not null</color>
+
+' 字段类型定义，灰色表示
+!define boolean <color:gray>boolean</color>
+!define tinyint <color:gray>tinyint</color>
+!define tinyint_unsigned <color:gray>tinyint_unsigned</color>
+!define smallint <color:gray>smallint</color>
+!define smallint_unsigned <color:gray>smallint_unsigned</color>
+!define int <color:gray>int</color>
+!define int_unsigned <color:gray>int_unsigned</color>
+!define bigint <color:gray>bigint</color>
+!define bigint_unsigned <color:gray>bigint_unsigned</color>
+!define decimal <color:gray>decimal</color>
+!define date <color:gray>date</color>
+!define datetime <color:gray>datetime</color>
+!define timestamp <color:gray>timestamp</color>
+!define blob <color:gray>blob</color>
+!define text <color:gray>text</color>
+!define json <color:gray>json</color>
+!define varchar(x) <color:gray>varchar[x]</color>
+
+' 注释，斜体表示
+!define comment(x) <color:gray>//x//</color>
+
+' 隐藏图标
+hide circle
+
+' 使用直角折线
+skinparam linetype ortho
+
+Database(kv) #EFFBEF {
+
+    Table(kv_group, group, 配置组) {
+        id bigint_unsigned not_null primary key <<AUTO_INCREMENT>> <<ID>>
+        gmt_create datetime default(CURRENT_TIMESTAMP)
+        gmt_modified datetime default(CURRENT_TIMESTAMP) <<TIMESTAMP>>
+
+        group_name varchar(50) not_null comment(组名称)
+        app_name varchar(50) not_null comment(应用名)
+        extension json comment(扩展信息)
+        version smallint_unsigned not_null default(0) comment(乐观锁版本号)
+        --
+        unique key uk_app_group (app_name, group_name) <<BK>>
+        --扩展属性--
+        extension.desc String comment(描述)
+    }
+
+    Table(kv_config_item, config_item, 配置项) {
+        id bigint_unsigned not_null primary key <<AUTO_INCREMENT>> <<ID>>
+        gmt_create datetime default(CURRENT_TIMESTAMP)
+        gmt_modified datetime default(CURRENT_TIMESTAMP) <<TIMESTAMP>>
+
+        group_id int_unsigned not_null comment(组ID)
+        item_key varchar(100) not_null comment(配置项Key)
+        item_value text comment(配置项值)
+        extension json comment(扩展信息)
+        version smallint_unsigned not_null default(0) comment(乐观锁版本号)
+        --
+        unique key uk_group_itemkey (group_id, item_key) <<BK>>
+        --扩展属性--
+        extension.valueType String comment(值的类型)
+        extension.logHistory Boolean comment(是否记录历史)
+    }
+
+    Table(kv_cache_item, cache_item, 缓存) {
+        id bigint_unsigned not_null primary key <<AUTO_INCREMENT>> <<ID>>
+        gmt_create datetime default(CURRENT_TIMESTAMP)
+        gmt_modified datetime default(CURRENT_TIMESTAMP) <<TIMESTAMP>>
+
+        group_id int_unsigned not_null comment(组ID)
+        item_key varchar(100) not_null comment(缓存Key)
+        item_value blob not_null comment(缓存值)
+        ttl bigint_unsigned comment(生存时间)
+        extension json comment(扩展信息)
+        version smallint_unsigned not_null default(0) comment(乐观锁版本号)
+        --
+        unique key uk_group_itemkey (group_id, item_key) <<BK>>
+        index idx_kv_cache_item_ttl (ttl)
+        --扩展属性--
+        extension.valueType String comment(值的类型)
+    }
+
+    Table(kv_config_item_history, config_item_history, 配置项变更历史) {
+        id bigint_unsigned not_null primary key <<AUTO_INCREMENT>>
+        gmt_create datetime default(CURRENT_TIMESTAMP)
+        gmt_modified datetime default(CURRENT_TIMESTAMP) <<TIMESTAMP>>
+
+        item_id int_unsigned not_null comment(配置项ID)
+        item_key varchar(100) comment(配置项Key)
+        item_value text comment(配置项值)
+        item_version smallint_unsigned not_null default(0) comment(配置变更的版本) <<INCREMENT>>
+        extension json comment
+        version smallint_unsigned not_null default(0) comment(版本)
+        --
+        unique key uk_item_version (item_id, item_version) <<BK>>
+        --扩展属性--
+        extension.operateType String comment(操作类型)
+    }
+}
+
+kv_group "1" --> "N" kv_config_item
+kv_group "1" --> "N" kv_cache_item
+kv_config_item "1" --> "N" kv_config_item_history
+@enduml

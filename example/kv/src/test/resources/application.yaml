@@ -1,0 +1,9 @@
+server:
+  port: 8082
+
+mybatis:
+  mapper-locations:
+    - classpath:mapper/kv/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    use-generated-keys: true

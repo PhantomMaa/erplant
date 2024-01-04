@@ -1,192 +1,82 @@
-### 功能介绍
+# 介绍
+以一种数据格式为蓝本，通过url-gencode工具定制代码的行为，来生成出来java工程常用的多个层次的代码。
+![](https://cdn.nlark.com/yuque/0/2023/png/253086/1695969239128-dcadce5a-0a07-4be5-a5fb-7aaeeaf88a6d.png#averageHue=%23fcfaf9&clientId=u0efd1331-81e7-4&from=paste&id=u05a45127&originHeight=948&originWidth=2208&originalType=url&ratio=1&rotation=0&showTitle=false&status=done&style=none&taskId=u3907c8f3-6700-4d89-9c6b-4393fcc3fa5&title=)
 
-- erplant是一款根据ER图生成数据库建表语句和java DO类的工具
-- 使用的输入源是plantuml
-  编写的ER图，在官方ER图语法的基础上做了扩展。较之[官方语法](http://wiki.plantuml.net/site/ie-diagram)，做了以下额外支持
-    - 增加Database层级，可以汇总多个库的设计到一张ER图中，并做好库层面的归类
-    - 增加字段类型、是否为空、默认值、是否自增等定义
-    - 增加索引定义，普通索引、主键索引、唯一索引等
-    - 增加扩展属性的定义，如json字段，可以在ER图中，描述其内部的属性
-    - 详细plant uml语法定义，参考下文中的样例
-- 面向开发设计阶段，在设计有数据库依赖的软件时，允许设计ER图先行。以描绘ER图为最原始的素材，像建筑工程师的图纸，之后依此生成编程语言需要的类型对象，以及生成数据库表。解决之前，表的设计和类型定义阶段割裂的问题
+# 主要意义
+- 增强的er图。一份蓝本可以看到整个系统的业务模型设计全貌
+- 以er图为输入，由uml-gencode工具生成java工程中多个层次的代码
+- 可以在plantuml er图源文件上，加入自定义标记，来扩展工具生成的逻辑，工具具备向前进化演进的特点
+- 生成代码的逻辑，引入了DDD的概念和一些最佳实践。如：
+   - 实体和数据表的分离
+   - 仓储类。根据表的类型，如实体表、关系表、子表等业务含义，相应生成的仓储类具备的功能也有所不同
+   - 每个实体都业务主键
+   - 防重复提交、幂等特性等
+- 生成代码自动具备的业务开发常用功能
+   - DDD仓储模式推荐的常用操作：根据表类型生成 get、save、remove、count、batchGet等功能方法
+   - 两种分页方式。基于页码、基于位移。[open api统一分页方式](https://automq66.feishu.cn/wiki/CaJUwVYheiQ7LskaLr2cOMLIn8e)
+   - 通过index索引，或者指定查询列，可以自动生成相应的Query方法
+- 底层依赖mybatis，自动生成DAO层代码。包含xml mapper、DAO类、DAOTest类。通过Test类确保生成的dao层逻辑的正确性
+- 可以利用数据表的json字段动态schema的特性，将json字段里的属性和数据表里的字段一起成为实体类的属性，可以使传统关系型数据库强schema特性之外，还具备类似mangoDB free schema的特点。方便业务开发过程中增减属性
+- 业务模型的注释有一个统一存放的地方。省去了DO、ddl建表语句等文件的comment
 
-### 前置准备
+# 搭配的DDD概念模型
+![](https://cdn.nlark.com/yuque/0/2023/png/253086/1695969239134-48f23302-26a8-4434-a0ab-e1dd394601fd.png#averageHue=%23a98b51&clientId=u0efd1331-81e7-4&from=paste&id=ucfc4e5c0&originHeight=1884&originWidth=2398&originalType=url&ratio=1&rotation=0&showTitle=false&status=done&style=none&taskId=u18700b2b-877d-47f4-b7c9-35ce31b37e1&title=)
 
+# 使用
+## 前置准备
 安装graphviz，在idea中打开puml文件显示预览图片
 
 mac安装方式。其他可参考：https://plantuml.com/graphviz-dot
-```bash
+```
 brew install libtool
 brew link libtool
 brew install graphviz
 brew link --overwrite graphviz
 ```
 
-### 使用方式
-
-### 命令行方式
-
+## 使用形式
+引入maven-plugin。工作方式类似grpc-plugin、lombok等。将代码生成到target/generated-sources目录下，避免工具生成的代码被人工二次修改带来的问题。
+这种定位下，每次mvn编译，全部重新生成所有层次代码。puml原文件 + 工具 变化，会印象生成的代码产生变化。
+由 编译通过，和生成的DAOTest层代码测试通过，这两个途径来保证生成代码的正确性。
+*.puml --> maven-plugin --> target/generated-sources/
 ```
-java -jar erplant-1.0.jar   
-Usage: erplant [-hV] -p=<packageName> <src>
-convert plantuml er diagram to database ddl and java do
-      <src>       the puml file
-  -h, --help      Show this help message and exit.
-  -p, --package=<packageName>
-                  assign the package name to generate java do file
-  -V, --version   Print version information and exit.
+<plugin>
+    <groupId>com.automq</groupId>
+    <artifactId>uml-gencode-maven-plugin</artifactId>
+    <version>1.0.1</version>
+    <configuration>
+        <packageName>com.hellocorp.automq.starter</packageName>
+        <srcPuml>automq-task.puml</srcPuml>
+        <generateTypes>DO,DAO,BK,PageNumQuery,OffsetQuery,Mapper,Ddl,DaoTest</generateTypes>
+    </configuration>
+    <executions>
+        <execution>
+            <goals>
+                <goal>generate</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
 ```
+可以通过generateTypes指定需要生成代码的种类。
 
-一个例子：
+## 一个puml源文件示例
+![](https://cdn.nlark.com/yuque/0/2023/png/253086/1695969239132-a231a175-2e27-4428-a474-64ac61e4e0bc.png#averageHue=%23dddddd&clientId=u0efd1331-81e7-4&from=paste&id=u0c439584&originHeight=644&originWidth=526&originalType=url&ratio=1&rotation=0&showTitle=false&status=done&style=none&taskId=u1abc0df7-0ce4-421b-87f8-2d64d5bf178&title=)
 
-```
-$ java -jar target/erplant-1.0.jar iam_er11.puml -p com.example
-$ ll *.java *.sql                                             
--rw-r--r--  1 mahang  staff   348B Aug 31 10:24 OrgDO.java
--rw-r--r--  1 mahang  staff   324B Aug 31 10:24 TenantDO.java
--rw-r--r--  1 mahang  staff   233B Aug 31 10:24 UserAuthDO.java
--rw-r--r--  1 mahang  staff   1.2K Aug 31 10:24 org.sql
--rw-r--r--  1 mahang  staff   391B Aug 31 10:24 user.sql
-$ cat user.sql 
-CREATE TABLE IF NOT EXISTS `user_auth` (
-    `id` bigint AUTO_INCREMENT ,
-    `gmt_create` datetime COMMENT '创建时间',
-    `gmt_modified` datetime COMMENT '修改时间',
-    `uid` bigint NOT NULL COMMENT '用户id',
-    `passwd` varchar(50) COMMENT '密码',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_uid` (`uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户登录验证';
-$ cat UserAuthDO.java 
-package com.example;
+## 保留可扩展的能力
+工具生成的代码，不可能100%满足真实多变的业务场景，所以需要提供扩展的方式。
+可以在以下几个层次，编写自己的扩展类。扩展类具备其继承父类的基本功能，同时可以有自己特殊自定义的部分。
 
-import java.util.Date;
-import lombok.Data;
+- DAO层 
+- Repository层
+- Converter层
 
-@Data
-public class UserAuthDO {
-
-    private Long id;
-
-    private Date gmtCreate;
-
-    private Date gmtModified;
-
-    private Long uid;
-
-    private String passwd;
-
-}
-
-```
-
-生成结果
-
-### idea插件方式
-
-TODO
-
-### 一个plantuml编写的ER图 demo
-
-```
-@startuml
-' 如果非视网膜屏，可以注释掉这一行
-skinparam dpi 300
-' 定义库关键字
-!define Database(name) package name <<Rectangle>>
-' 定义表关键字，包括了表名和描述
-!define Table(name,desc) class name as "desc" << (T,#FFAAAA) >>
-
-' 使用下划线表示不能为null
-!define not_null(x) <u>x</u>
-' 默认值
-!define default(x) <color:gray>default x</color>
-
-!define not_null <color:gray>not null</color>
-
-' 字段类型定义，灰色表示
-!define tinyint <color:gray>tinyint</color>
-!define smallint <color:gray>smallint</color>
-!define int <color:gray>int</color>
-!define bigint <color:gray>bigint</color>
-!define decimal <color:gray>decimal</color>
-!define date <color:gray>date</color>
-!define datetime <color:gray>datetime</color>
-!define timestamp <color:gray>timestamp</color>
-!define blob <color:gray>blob</color>
-!define text <color:gray>text</color>
-!define json <color:gray>json</color>
-!define varchar(x) <color:gray>varchar[x]</color>
-
-' 注释，斜体表示
-!define comment(x) //x//
-
-' 隐藏图标
-hide circle
-
-' 使用直角折线
-skinparam linetype ortho
-
-Database(user) #FBFBEF {
-
-    Table(user_auth, user_auth\n(用户登录验证)) {
-        id bigint <<AUTO_INCREMENT>>
-        gmt_create datetime comment(创建时间)
-        gmt_modified datetime comment(修改时间)
-        uid bigint not_null comment(用户id)
-        passwd varchar(50) comment(密码)
-        --
-        primary key (id)
-        unique key uk_uid (uid)
-    }
-}
-
-Database(org) #EFFBEF {
-
-    Table(tenant, tenant\n(租户)) {
-        id bigint <<AUTO_INCREMENT>>
-        gmt_create datetime comment(创建时间)
-        gmt_modified datetime comment(修改时间)
-        tenant_id bigint not_null comment(租户id) <<PK>>
-        name varchar(50) not_null comment(名称)
-        owner_uid bigint not_null comment(拥有者)
-        extension text comment(扩展信息)
-        deleted tinyint default(0) comment(扩展信息)
-        --
-        primary key (id)
-        unique key uk_tenant_id (tenant_id)
-    }
-
-    Table(org, org\n(组织)) {
-        id bigint <<AUTO_INCREMENT>>
-        gmt_create datetime not_null comment(创建时间)
-        gmt_modified datetime not_null comment(修改时间)
-        org_id bigint not_null comment(组织id) <<PK>>
-        tenant_id bigint not_null comment(租户id)
-        name varchar(50) not_null comment(组织名)
-        brief varchar(500) comment(简介)
-        extension text comment(扩展信息)
-        --
-        primary key (id)
-        unique key uk_org_id (org_id)
-        key idx_tenant_id (tenant_id)
-        --扩展属性--
-        extension.ownerStaffId comment(组织leader)
-    }
-}
-@enduml
-```
-
-#### 示例说明
-
-- Database层是可选的。Database层，可以适应大型系统，微服务、多模块的区分需求。也可以缺省，只有Table一层
-- <<AUTO_INCREMENT>>只可用来修饰主键，对应mysql的AUTO_INCREMENT
-- 需要使用--来分隔字段定义部分和索引定义部分
-- 可以使用--增加扩展属性的定义部分
-
-### 原理
-
-- 解析ER图语义，转为程序里的对象描述
-- 解析器使用按行解析的方式，非字符串拆解，兼容性更高
-- 使用freemarker模板，类生成建表语句和DO类
-
+---
+里面对于DDD的一些实现原则，可以参考以下几篇文章：
+- [DDD系列 第一讲 - Domain Primitive](https://mp.weixin.qq.com/s/kpXklmidsidZEiHNw57QAQ)
+- [DDD系列 第二讲 - 应用架构](https://mp.weixin.qq.com/s/MU1rqpQ1aA1p7OtXqVVwxQ)
+- [DDD系列 第三讲 - Repository模式](https://mp.weixin.qq.com/s/1bcymUcjCkOdvVygunShmw)
+- [DDD系列 第四讲 - 领域层设计规范](https://mp.weixin.qq.com/s/w1zqhWGuDPsCayiOgfxk6w)
+- [DDD系列 第五讲 - 聊聊如何避免写流水账代码](https://mp.weixin.qq.com/s/1rdnkROdcNw5ro4ct99SqQ)
+- [DDD 中的那些模式 — CQRS](https://zhuanlan.zhihu.com/p/115685384)
+- [A Beginner's Guide to CQRS](https://www.eventstore.com/cqrs-pattern)
